@@ -30,7 +30,7 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 
 3. 重启broker，查看日志，如果看到如下日志：
 
-   `Successfully loaded entry filter for name pulsar-msg-filter`
+   `Successfully loaded entry filter for name` \`pulsar-msg-filter\`
 
    则说明配置成功
 
