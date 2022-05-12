@@ -4,7 +4,7 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 
 ----------------------------------------
 
-`pulsar-msg-filter-plugin` 是一个基于 [Apache Pulsar](https://github.com/apache/pulsar) `PIP 105: Support pluggable entry filter in Dispatcher` 实现的**服务端**消息过滤插件。
+`pulsar-msg-filter-plugin` 是一个基于`PIP 105: Support pluggable entry filter in Dispatcher` 为 [Apache Pulsar](https://github.com/apache/pulsar) 实现的 **服务端** 消息过滤插件。
 
 ### 特性介绍
 
@@ -40,4 +40,4 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 
   赞助我一杯美式 ^_^
 
-  <img src="./weixin.png" style="zoom:20%;" />
+  <img src="./weixin.png" width="30%" />
