@@ -9,28 +9,48 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 ### 特性介绍
 
 1. 小巧、高性能
-2. 支持各种复杂过滤场景
+2. 支持常见条件表达式，满足各种业务过滤场景
 3. ...
 
 ### 使用
 
-1. pulsar broker安装插件并配置（version >= 2.10），插件名称`name: pulsar-msg-filter-plugin`
+1. 下载[pulsar-msg-filter-plugin-VERSION.nar](https://github.com/yangl/pulsar-msg-filter-plugin/releases/)插件并保存至指定目录，如/app/conf/plugin
 
-2. 消费组订阅时添加`pulsar-msg-filter-expression`订阅属性，eg: 
+2. 修改pulsar broker.conf配置（version >= 2.10），插件名称`pulsar-msg-filter`
 
-   订阅消息头中 k1小于6 或者 k2是"vvvv" 且k3是false的消息
+   ```yaml
+   # Class name of Pluggable entry filter that can decide whether the entry needs to be filtered
+   # You can use this class to decide which entries can be sent to consumers.
+   # Multiple classes need to be separated by commas.
+   entryFilterNames=pulsar-msg-filter
+   
+   # The directory for all the entry filter implementations
+   entryFiltersDirectory=/app/conf/plugin
+   ```
+
+3. 重启broker，查看日志，如果看到如下日志：
+
+   `Successfully loaded entry filter for name pulsar-msg-filter`
+
+   则说明配置成功
+
+4. 创建pulsar订阅消费组时添加`pulsar-msg-filter-expression`订阅属性，eg: 
+
+   订阅消息头中 k1小于6 或者 (k2是"vvvv" 且k3 是false) 的消息
 
    ```java
-   subscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='false')")
+        persistentSubscription.getSubscriptionProperties()
+                .put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='false')");
+   
    ```
 
 **注意:**
 
-1. property的key固定为`pulsar-msg-filter-expression`
-2. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意其类型转换至目标类型
+1. SubscriptionProperties中的订阅**过滤条件key**固定为`pulsar-msg-filter-expression`
+2. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意将其类型转换至目标类型
 3. AviatorScript的`false`判断个人建议直接使用字符串的 `==`  `true/false`比较，AviatorScript只有`nil false`为false，其他全部为true
 4. `&& ||` 支持短路
-5. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见 [AV函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
+5. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见其 [函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
 
 ### Links
 

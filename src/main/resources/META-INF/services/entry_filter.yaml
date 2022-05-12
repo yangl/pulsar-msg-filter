@@ -1,4 +1,0 @@
-# Entry filter name, which should be configured in the broker.conf file later
-name: pulsar-msg-filter-plugin
-description: msg filter plugin for Apache Pulsar
-entryFilterClass: com.sf.pulsar.plugin.MsgFilterImpl

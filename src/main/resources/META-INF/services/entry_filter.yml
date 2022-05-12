@@ -1,0 +1,6 @@
+name:
+  pulsar-msg-filter
+description:
+  msg filter plugin for Apache Pulsar
+entryFilterClass:
+  com.sf.pulsar.plugin.MsgFilterImpl
