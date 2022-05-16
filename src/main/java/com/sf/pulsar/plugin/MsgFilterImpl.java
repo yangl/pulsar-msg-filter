@@ -27,12 +27,19 @@ public class MsgFilterImpl implements EntryFilter {
 
     private static final AviatorEvaluatorInstance AV_EVALUATOR;
 
+    private static final String MSGMETADATA_PROPERTIES_NULL_REJECT_KEY = "msgmetadata-properties-null-reject";
+    private static boolean MSGMETADATA_PROPERTIES_NULL_REJECT = true;
+
 
     static {
         AV_EVALUATOR = AviatorEvaluator.getInstance();
         // only enable `If` `Return` feature
         Set<Feature> features = Feature.asSet(Feature.If, Feature.Return);
         AV_EVALUATOR.setOption(Options.FEATURE_SET, features);
+        String nullReject = System.getProperty(MSGMETADATA_PROPERTIES_NULL_REJECT_KEY, System.getenv(MSGMETADATA_PROPERTIES_NULL_REJECT_KEY));
+        if (StringUtils.isNotBlank(nullReject)) {
+            MSGMETADATA_PROPERTIES_NULL_REJECT = Boolean.parseBoolean(nullReject);
+        }
     }
 
     @Override
@@ -52,9 +59,13 @@ public class MsgFilterImpl implements EntryFilter {
         Map<String, Object> env = Maps.newHashMap();
         context.getMsgMetadata().getPropertiesList().forEach(kv -> env.put(kv.getKey(), kv.getValue()));
 
-        // expression is not null && env is null, reject
+        // expression is not null && env is null
         if (env.isEmpty()) {
-            return FilterResult.REJECT;
+            if (MSGMETADATA_PROPERTIES_NULL_REJECT) {
+                return FilterResult.REJECT;
+            } else {
+                return FilterResult.ACCEPT;
+            }
         }
 
         Object rs = null;

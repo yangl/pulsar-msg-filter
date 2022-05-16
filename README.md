@@ -12,7 +12,7 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 2. 支持常见条件表达式，满足各种业务过滤场景
 3. ...
 
-### 使用
+### 使用说明
 
 1. 下载[pulsar-msg-filter-plugin-VERSION.nar](https://github.com/yangl/pulsar-msg-filter-plugin/releases/)插件并保存至指定目录，如/app/conf/plugin
 
@@ -34,23 +34,50 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 
    则说明配置成功
 
-4. 创建pulsar订阅消费组时添加`pulsar-msg-filter-expression`订阅属性，eg: 
+4. 验证（option）
 
-   订阅消息头中 k1小于6 或者 (k2是"vvvv" 且k3 是false) 的消息
+   1. **发送方**构建Producer实例时关闭 `batch` 操作 **.enableBatching(false)**
+
+      ```java
+                  Producer<String> producer = client.newProducer(Schema.STRING)
+                          .topic("hi-topic")
+                          .enableBatching(false)
+                          .create();
+                  
+                  producer.newMessage()
+                          .property("k1","7")
+                          .property("k2", "vvvv")
+                          .property("k3", "true")
+                          .value("hi, this msg from `pulsar-msg-filter-plugin`")
+                          .send();
+      ```
+
+   2. **消费方**创建Consumer时添加 **pulsar-msg-filter-expression** 订阅属性:
 
    ```java
-        persistentSubscription.getSubscriptionProperties()
-                .put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='false')");
+               Map<String, String> subscriptionProperties = Maps.newHashMap();
+               subscriptionProperties.put("pulsar-msg-filter-expression", "long(k1)%10==7 || (k2=='vvvv' && k3=='false')");
+               
+               Consumer consumer = client.newConsumer()
+                       .topic("test-topic-1")
+                       .subscriptionName("my-subscription-1")
+                       .subscriptionProperties(subscriptionProperties)
+                       .subscribe();
    
    ```
 
 **注意:**
 
-1. SubscriptionProperties中的订阅**过滤条件key**固定为`pulsar-msg-filter-expression`
-2. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意将其类型转换至目标类型
-3. AviatorScript的`false`判断个人建议直接使用字符串的 `==`  `true/false`比较，AviatorScript只有`nil false`为false，其他全部为true
-4. `&& ||` 支持短路
-5. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见其 [函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
+1. 消息过滤过滤依赖`MessageMetadata`，故需关闭发送端的batch操作（默认开启）
+2. SubscriptionProperties中的订阅**过滤条件key**固定为**`pulsar-msg-filter-expression`**
+3. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意将其类型转换至目标类型
+4. AviatorScript的`false`判断个人建议直接使用字符串的 `==`  `true/false`比较，AviatorScript只有`nil false`为false，其他全部为true
+5. `&& ||` 支持短路
+6. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见其 [函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
+
+### License
+
+`pulsar-msg-filter-plugin` is licensed under the [GPLv3 License](./LICENSE).
 
 ### Links
 
