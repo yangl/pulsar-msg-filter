@@ -37,34 +37,34 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 4. 验证（option）
 
    1. **发送方**构建Producer实例时关闭 `batch` 操作 **.enableBatching(false)**
-
+   
       ```java
-                  Producer<String> producer = client.newProducer(Schema.STRING)
-                          .topic("hi-topic")
-                          .enableBatching(false)
-                          .create();
-                  
-                  producer.newMessage()
-                          .property("k1","7")
-                          .property("k2", "vvvv")
-                          .property("k3", "true")
-                          .value("hi, this msg from `pulsar-msg-filter-plugin`")
-                          .send();
+      Producer<String> producer = client.newProducer(Schema.STRING)
+          .topic("test-topic-1")
+          .enableBatching(false)
+          .create();
+      
+      producer.newMessage()
+          .property("k1","7")
+          .property("k2", "vvvv")
+          .property("k3", "true")
+          .value("hi, this msg from `pulsar-msg-filter-plugin`")
+          .send();
       ```
 
    2. **消费方**创建Consumer时添加 **pulsar-msg-filter-expression** 订阅属性:
-
-   ```java
-               Map<String, String> subscriptionProperties = Maps.newHashMap();
-               subscriptionProperties.put("pulsar-msg-filter-expression", "long(k1)%10==7 || (k2=='vvvv' && k3=='false')");
-               
-               Consumer consumer = client.newConsumer()
-                       .topic("test-topic-1")
-                       .subscriptionName("my-subscription-1")
-                       .subscriptionProperties(subscriptionProperties)
-                       .subscribe();
    
-   ```
+      ```java
+      Map<String, String> subscriptionProperties = Maps.newHashMap();
+      subscriptionProperties.put("pulsar-msg-filter-expression", "long(k1)%10==7 || (k2=='vvvv' && k3=='false')");
+      
+      Consumer consumer = client.newConsumer()
+          .topic("test-topic-1")
+          .subscriptionName("my-subscription-1")
+          .subscriptionProperties(subscriptionProperties)
+          .subscribe();
+      ```
+   
 
 **注意:**
 
