@@ -1,12 +1,6 @@
 package com.sf.pulsar.plugin;
 
 import com.google.common.collect.Maps;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.googlecode.aviator.AviatorEvaluator;
-import com.googlecode.aviator.AviatorEvaluatorInstance;
-import com.googlecode.aviator.Feature;
-import com.googlecode.aviator.Options;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.commons.lang3.StringUtils;
@@ -16,31 +10,11 @@ import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
 
 import java.util.Map;
-import java.util.Set;
 
+import static com.sf.pulsar.common.MsgFilterConstants.*;
 
 @Slf4j
 public class MsgFilterImpl implements EntryFilter {
-
-    private static final Gson GSON = new GsonBuilder().create();
-    public static final String MSG_FILTER_EXPRESSION_KEY = "pulsar-msg-filter-expression";
-
-    private static final AviatorEvaluatorInstance AV_EVALUATOR;
-
-    private static final String MSGMETADATA_PROPERTIES_NULL_REJECT_KEY = "msgmetadata-properties-null-reject";
-    private static boolean MSGMETADATA_PROPERTIES_NULL_REJECT = true;
-
-
-    static {
-        AV_EVALUATOR = AviatorEvaluator.getInstance();
-        // only enable `If` `Return` feature
-        Set<Feature> features = Feature.asSet(Feature.If, Feature.Return);
-        AV_EVALUATOR.setOption(Options.FEATURE_SET, features);
-        String nullReject = System.getProperty(MSGMETADATA_PROPERTIES_NULL_REJECT_KEY, System.getenv(MSGMETADATA_PROPERTIES_NULL_REJECT_KEY));
-        if (StringUtils.isNotBlank(nullReject)) {
-            MSGMETADATA_PROPERTIES_NULL_REJECT = Boolean.parseBoolean(nullReject);
-        }
-    }
 
     @Override
     public FilterResult filterEntry(Entry entry, FilterContext context) {
@@ -72,7 +46,11 @@ public class MsgFilterImpl implements EntryFilter {
         try {
             rs = AV_EVALUATOR.execute(expression, env);
         } catch (Exception e) {
-            log.error("--aviator expression execute error, the expression is: {}, env is: {}", expression, GSON.toJson(env), e);
+            log.error(
+                    "--aviator expression execute error, the expression is: {}, env is: {}",
+                    expression,
+                    GSON.toJson(env),
+                    e);
         }
 
         if (rs != null && Boolean.FALSE.equals(rs)) {
