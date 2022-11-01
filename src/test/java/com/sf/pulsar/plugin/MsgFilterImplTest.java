@@ -1,6 +1,5 @@
 package com.sf.pulsar.plugin;
 
-
 import com.google.common.util.concurrent.MoreExecutors;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -51,14 +50,15 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
 
+import static com.sf.pulsar.common.MsgFilterConstants.MSG_FILTER_EXPRESSION_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.fail;
-
 
 @Slf4j
 public class MsgFilterImplTest {
@@ -77,16 +77,17 @@ public class MsgFilterImplTest {
     final String successTopicName = "persistent://prop/use/ns-abc/successTopic";
     final String subName = "subscriptionName";
 
-
     private OrderedExecutor executor;
     private EventLoopGroup eventLoopGroup;
 
     private MsgFilterImpl msgFilter;
 
-
     @BeforeMethod
     public void setup() throws Exception {
-        executor = OrderedExecutor.newBuilder().numThreads(1).name("persistent-subscription-test").build();
+        executor = OrderedExecutor.newBuilder()
+                .numThreads(1)
+                .name("persistent-subscription-test")
+                .build();
         eventLoopGroup = new NioEventLoopGroup();
 
         ServiceConfiguration svcConfig = spy(ServiceConfiguration.class);
@@ -104,53 +105,56 @@ public class MsgFilterImplTest {
 
         doReturn(new InMemTransactionBufferProvider()).when(pulsarMock).getTransactionBufferProvider();
         doReturn(new TransactionPendingAckStoreProvider() {
-            @Override
-            public CompletableFuture<PendingAckStore> newPendingAckStore(PersistentSubscription subscription) {
-                return CompletableFuture.completedFuture(new PendingAckStore() {
                     @Override
-                    public void replayAsync(PendingAckHandleImpl pendingAckHandle, ScheduledExecutorService executorService) {
-                        try {
-                            Field field = PendingAckHandleState.class.getDeclaredField("state");
-                            field.setAccessible(true);
-                            field.set(pendingAckHandle, PendingAckHandleState.State.Ready);
-                        } catch (NoSuchFieldException | IllegalAccessException e) {
-                            fail();
-                        }
+                    public CompletableFuture<PendingAckStore> newPendingAckStore(PersistentSubscription subscription) {
+                        return CompletableFuture.completedFuture(new PendingAckStore() {
+                            @Override
+                            public void replayAsync(
+                                    PendingAckHandleImpl pendingAckHandle, ExecutorService executorService) {
+                                try {
+                                    Field field = PendingAckHandleState.class.getDeclaredField("state");
+                                    field.setAccessible(true);
+                                    field.set(pendingAckHandle, PendingAckHandleState.State.Ready);
+                                } catch (NoSuchFieldException | IllegalAccessException e) {
+                                    fail();
+                                }
+                            }
+
+                            @Override
+                            public CompletableFuture<Void> closeAsync() {
+                                return CompletableFuture.completedFuture(null);
+                            }
+
+                            @Override
+                            public CompletableFuture<Void> appendIndividualAck(
+                                    TxnID txnID, List<MutablePair<PositionImpl, Integer>> positions) {
+                                return CompletableFuture.completedFuture(null);
+                            }
+
+                            @Override
+                            public CompletableFuture<Void> appendCumulativeAck(TxnID txnID, PositionImpl position) {
+                                return CompletableFuture.completedFuture(null);
+                            }
+
+                            @Override
+                            public CompletableFuture<Void> appendCommitMark(TxnID txnID, CommandAck.AckType ackType) {
+                                return CompletableFuture.completedFuture(null);
+                            }
+
+                            @Override
+                            public CompletableFuture<Void> appendAbortMark(TxnID txnID, CommandAck.AckType ackType) {
+                                return CompletableFuture.completedFuture(null);
+                            }
+                        });
                     }
 
                     @Override
-                    public CompletableFuture<Void> closeAsync() {
-                        return CompletableFuture.completedFuture(null);
+                    public CompletableFuture<Boolean> checkInitializedBefore(PersistentSubscription subscription) {
+                        return CompletableFuture.completedFuture(true);
                     }
-
-                    @Override
-                    public CompletableFuture<Void> appendIndividualAck(TxnID txnID, List<MutablePair<PositionImpl, Integer>> positions) {
-                        return CompletableFuture.completedFuture(null);
-                    }
-
-                    @Override
-                    public CompletableFuture<Void> appendCumulativeAck(TxnID txnID, PositionImpl position) {
-                        return CompletableFuture.completedFuture(null);
-                    }
-
-                    @Override
-                    public CompletableFuture<Void> appendCommitMark(TxnID txnID, CommandAck.AckType ackType) {
-                        return CompletableFuture.completedFuture(null);
-                    }
-
-                    @Override
-                    public CompletableFuture<Void> appendAbortMark(TxnID txnID, CommandAck.AckType ackType) {
-                        return CompletableFuture.completedFuture(null);
-                    }
-
-                });
-            }
-
-            @Override
-            public CompletableFuture<Boolean> checkInitializedBefore(PersistentSubscription subscription) {
-                return CompletableFuture.completedFuture(true);
-            }
-        }).when(pulsarMock).getTransactionPendingAckStoreProvider();
+                })
+                .when(pulsarMock)
+                .getTransactionPendingAckStoreProvider();
         doReturn(svcConfig).when(pulsarMock).getConfiguration();
         doReturn(mock(Compactor.class)).when(pulsarMock).getCompactor();
 
@@ -158,8 +162,7 @@ public class MsgFilterImplTest {
         doReturn(mlFactoryMock).when(pulsarMock).getManagedLedgerFactory();
 
         ZooKeeper zkMock = createMockZooKeeper();
-        doReturn(createMockBookKeeper(executor))
-                .when(pulsarMock).getBookKeeperClient();
+        doReturn(createMockBookKeeper(executor)).when(pulsarMock).getBookKeeperClient();
 
         store = new ZKMetadataStore(zkMock);
         doReturn(store).when(pulsarMock).getLocalMetadataStore();
@@ -190,7 +193,7 @@ public class MsgFilterImplTest {
 
     @AfterMethod(alwaysRun = true)
     public void teardown() throws Exception {
-        brokerMock.close(); //to clear pulsarStats
+        brokerMock.close(); // to clear pulsarStats
         try {
             pulsarMock.close();
         } catch (Exception e) {
@@ -205,7 +208,6 @@ public class MsgFilterImplTest {
         }
     }
 
-
     @Test
     public void testFilterEntry0() {
         KeyValue kv1 = new KeyValue();
@@ -216,7 +218,6 @@ public class MsgFilterImplTest {
         kv2.setKey("k2");
         kv2.setValue("vvvv");
 
-
         KeyValue kv3 = new KeyValue();
         kv3.setKey("k3");
         kv3.setValue("false");
@@ -224,8 +225,9 @@ public class MsgFilterImplTest {
         MessageMetadata metadata = new MessageMetadata();
         metadata.addAllProperties(List.of(kv1, kv2, kv3));
 
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='false')");
-
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='false')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -236,7 +238,6 @@ public class MsgFilterImplTest {
         Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
     }
 
-
     @Test
     public void testFilterEntry1() {
         KeyValue kv1 = new KeyValue();
@@ -246,7 +247,6 @@ public class MsgFilterImplTest {
         KeyValue kv2 = new KeyValue();
         kv2.setKey("k2");
         kv2.setValue("vvvv");
-
 
         KeyValue kv3 = new KeyValue();
         kv3.setKey("k3");
@@ -259,8 +259,9 @@ public class MsgFilterImplTest {
         MessageMetadata metadata = new MessageMetadata();
         metadata.addAllProperties(List.of(kv1, kv2, kv3, kv4));
 
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "long(k1)<6 || (k2=='vvvv' && k3=='true')");
-
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "long(k1)<6 || (k2=='vvvv' && k3=='true')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -270,7 +271,6 @@ public class MsgFilterImplTest {
 
         Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
     }
-
 
     @Test
     public void testFilterEntry2() {
@@ -282,7 +282,6 @@ public class MsgFilterImplTest {
         kv2.setKey("k2");
         kv2.setValue("vvvv");
 
-
         KeyValue kv3 = new KeyValue();
         kv3.setKey("k3");
         kv3.setValue("false");
@@ -290,8 +289,9 @@ public class MsgFilterImplTest {
         MessageMetadata metadata = new MessageMetadata();
         metadata.addAllProperties(List.of(kv1, kv2, kv3));
 
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -312,8 +312,9 @@ public class MsgFilterImplTest {
         metadata.addAllProperties(List.of(kv1));
 
         // only exec `double(k1)<6` get true, then return
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -334,8 +335,9 @@ public class MsgFilterImplTest {
         metadata.addAllProperties(List.of(kv1));
 
         // only exec `long(k1)<6` get true, then return
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "long(k1)<6 || (k2=='vvvv' && k3=='true')");
-
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "long(k1)<6 || (k2=='vvvv' && k3=='true')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -359,8 +361,9 @@ public class MsgFilterImplTest {
         MessageMetadata metadata = new MessageMetadata();
         metadata.addAllProperties(List.of(kv1, kv2));
 
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -370,7 +373,6 @@ public class MsgFilterImplTest {
 
         Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
     }
-
 
     @Test
     public void testFilterEntry6() {
@@ -385,8 +387,9 @@ public class MsgFilterImplTest {
         MessageMetadata metadata = new MessageMetadata();
         metadata.addAllProperties(List.of(kv1, kv2));
 
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -419,12 +422,13 @@ public class MsgFilterImplTest {
         Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
     }
 
-
     @Test
     public void testFilterEntry8() {
         MessageMetadata metadata = new MessageMetadata();
 
-        persistentSubscription.getSubscriptionProperties().put("pulsar-msg-filter-expression", "double(k1)<6 || (k2=='vvvv' && k3=='true')");
+        Map<String, String> subscriptionProperties =
+                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
+        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
         FilterContext context = new FilterContext();
         context.setMsgMetadata(metadata);
@@ -435,23 +439,23 @@ public class MsgFilterImplTest {
         Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
     }
 
-
     static <T> T spyWithClassAndConstructorArgs(Class<T> classToSpy, Object... args) {
-        return Mockito.mock(classToSpy, Mockito.withSettings()
-                .useConstructor(args)
-                .defaultAnswer(Mockito.CALLS_REAL_METHODS));
+        return Mockito.mock(
+                classToSpy, Mockito.withSettings().useConstructor(args).defaultAnswer(Mockito.CALLS_REAL_METHODS));
     }
-
 
     static MockZooKeeper createMockZooKeeper() throws Exception {
         MockZooKeeper zk = MockZooKeeper.newInstance(MoreExecutors.newDirectExecutorService());
         List<ACL> dummyAclList = new ArrayList<>(0);
 
-        ZkUtils.createFullPathOptimistic(zk, "/ledgers/available/192.168.1.1:" + 5000,
-                "".getBytes(StandardCharsets.UTF_8), dummyAclList, CreateMode.PERSISTENT);
-
-        zk.create("/ledgers/LAYOUT", "1\nflat:1".getBytes(StandardCharsets.UTF_8), dummyAclList,
+        ZkUtils.createFullPathOptimistic(
+                zk,
+                "/ledgers/available/192.168.1.1:" + 5000,
+                "".getBytes(StandardCharsets.UTF_8),
+                dummyAclList,
                 CreateMode.PERSISTENT);
+
+        zk.create("/ledgers/LAYOUT", "1\nflat:1".getBytes(StandardCharsets.UTF_8), dummyAclList, CreateMode.PERSISTENT);
         return zk;
     }
 
