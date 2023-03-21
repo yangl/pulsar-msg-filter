@@ -63,425 +63,431 @@ import static org.testng.Assert.fail;
 @Slf4j
 public class MsgFilterImplTest {
 
-    private PulsarService pulsarMock;
-    private BrokerService brokerMock;
-    private ManagedLedgerFactory mlFactoryMock;
-    private MetadataStore store;
-    private ManagedLedger ledgerMock;
-    private ManagedCursorImpl cursorMock;
-    private PersistentTopic topic;
-    private PersistentSubscription persistentSubscription;
-    private Consumer consumerMock;
-    private ManagedLedgerConfig managedLedgerConfigMock;
-
-    final String successTopicName = "persistent://prop/use/ns-abc/successTopic";
-    final String subName = "subscriptionName";
-
-    private OrderedExecutor executor;
-    private EventLoopGroup eventLoopGroup;
-
-    private MsgFilterImpl msgFilter;
-
-    @BeforeMethod
-    public void setup() throws Exception {
-        executor = OrderedExecutor.newBuilder()
-                .numThreads(1)
-                .name("persistent-subscription-test")
-                .build();
-        eventLoopGroup = new NioEventLoopGroup();
-
-        ServiceConfiguration svcConfig = spy(ServiceConfiguration.class);
-        svcConfig.setBrokerShutdownTimeoutMs(0L);
-        svcConfig.setLoadBalancerOverrideBrokerNicSpeedGbps(Optional.of(1.0d));
-        svcConfig.setTransactionCoordinatorEnabled(true);
-        svcConfig.setClusterName("pulsar-cluster");
-        pulsarMock = spyWithClassAndConstructorArgs(PulsarService.class, svcConfig);
-        PulsarResources pulsarResources = mock(PulsarResources.class);
-        doReturn(pulsarResources).when(pulsarMock).getPulsarResources();
-        NamespaceResources namespaceResources = mock(NamespaceResources.class);
-        doReturn(namespaceResources).when(pulsarResources).getNamespaceResources();
-
-        doReturn(Optional.of(new Policies())).when(namespaceResources).getPoliciesIfCached(any());
-
-        doReturn(new InMemTransactionBufferProvider()).when(pulsarMock).getTransactionBufferProvider();
-        doReturn(new TransactionPendingAckStoreProvider() {
-                    @Override
-                    public CompletableFuture<PendingAckStore> newPendingAckStore(PersistentSubscription subscription) {
-                        return CompletableFuture.completedFuture(new PendingAckStore() {
-                            @Override
-                            public void replayAsync(
-                                    PendingAckHandleImpl pendingAckHandle, ExecutorService executorService) {
-                                try {
-                                    Field field = PendingAckHandleState.class.getDeclaredField("state");
-                                    field.setAccessible(true);
-                                    field.set(pendingAckHandle, PendingAckHandleState.State.Ready);
-                                } catch (NoSuchFieldException | IllegalAccessException e) {
-                                    fail();
-                                }
-                            }
-
-                            @Override
-                            public CompletableFuture<Void> closeAsync() {
-                                return CompletableFuture.completedFuture(null);
-                            }
-
-                            @Override
-                            public CompletableFuture<Void> appendIndividualAck(
-                                    TxnID txnID, List<MutablePair<PositionImpl, Integer>> positions) {
-                                return CompletableFuture.completedFuture(null);
-                            }
-
-                            @Override
-                            public CompletableFuture<Void> appendCumulativeAck(TxnID txnID, PositionImpl position) {
-                                return CompletableFuture.completedFuture(null);
-                            }
-
-                            @Override
-                            public CompletableFuture<Void> appendCommitMark(TxnID txnID, CommandAck.AckType ackType) {
-                                return CompletableFuture.completedFuture(null);
-                            }
-
-                            @Override
-                            public CompletableFuture<Void> appendAbortMark(TxnID txnID, CommandAck.AckType ackType) {
-                                return CompletableFuture.completedFuture(null);
-                            }
-                        });
-                    }
-
-                    @Override
-                    public CompletableFuture<Boolean> checkInitializedBefore(PersistentSubscription subscription) {
-                        return CompletableFuture.completedFuture(true);
-                    }
-                })
-                .when(pulsarMock)
-                .getTransactionPendingAckStoreProvider();
-        doReturn(svcConfig).when(pulsarMock).getConfiguration();
-        doReturn(mock(Compactor.class)).when(pulsarMock).getCompactor();
-
-        mlFactoryMock = mock(ManagedLedgerFactory.class);
-        doReturn(mlFactoryMock).when(pulsarMock).getManagedLedgerFactory();
-
-        ZooKeeper zkMock = createMockZooKeeper();
-        doReturn(createMockBookKeeper(executor)).when(pulsarMock).getBookKeeperClient();
-
-        store = new ZKMetadataStore(zkMock);
-        doReturn(store).when(pulsarMock).getLocalMetadataStore();
-        doReturn(store).when(pulsarMock).getConfigurationMetadataStore();
-
-        brokerMock = spyWithClassAndConstructorArgs(BrokerService.class, pulsarMock, eventLoopGroup);
-        doNothing().when(brokerMock).unloadNamespaceBundlesGracefully();
-        doReturn(brokerMock).when(pulsarMock).getBrokerService();
-
-        ledgerMock = mock(ManagedLedgerImpl.class);
-        cursorMock = mock(ManagedCursorImpl.class);
-        managedLedgerConfigMock = mock(ManagedLedgerConfig.class);
-        doReturn(new ManagedCursorContainer()).when(ledgerMock).getCursors();
-        doReturn("mockCursor").when(cursorMock).getName();
-        doReturn(new PositionImpl(1, 50)).when(cursorMock).getMarkDeletedPosition();
-        doReturn(ledgerMock).when(cursorMock).getManagedLedger();
-        doReturn(managedLedgerConfigMock).when(ledgerMock).getConfig();
-        doReturn(false).when(managedLedgerConfigMock).isAutoSkipNonRecoverableData();
-
-        topic = new PersistentTopic(successTopicName, ledgerMock, brokerMock);
-
-        consumerMock = mock(Consumer.class);
-
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false);
-
-        msgFilter = new MsgFilterImpl();
-    }
-
-    @AfterMethod(alwaysRun = true)
-    public void teardown() throws Exception {
-        brokerMock.close(); // to clear pulsarStats
-        try {
-            pulsarMock.close();
-        } catch (Exception e) {
-            log.warn("Failed to close pulsar service", e);
-            throw e;
-        }
-
-        store.close();
-        executor.shutdownNow();
-        if (eventLoopGroup != null) {
-            eventLoopGroup.shutdownGracefully().get();
-        }
-    }
-
-    @Test
-    public void testFilterEntry0() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("9");
-
-        KeyValue kv2 = new KeyValue();
-        kv2.setKey("k2");
-        kv2.setValue("vvvv");
-
-        KeyValue kv3 = new KeyValue();
-        kv3.setKey("k3");
-        kv3.setValue("false");
-
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1, kv2, kv3));
-
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='false')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
-
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
-
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+	private PulsarService pulsarMock;
+
+	private BrokerService brokerMock;
+
+	private ManagedLedgerFactory mlFactoryMock;
+
+	private MetadataStore store;
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
-    }
-
-    @Test
-    public void testFilterEntry1() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("9");
+	private ManagedLedger ledgerMock;
+
+	private ManagedCursorImpl cursorMock;
 
-        KeyValue kv2 = new KeyValue();
-        kv2.setKey("k2");
-        kv2.setValue("vvvv");
+	private PersistentTopic topic;
+
+	private PersistentSubscription persistentSubscription;
 
-        KeyValue kv3 = new KeyValue();
-        kv3.setKey("k3");
-        kv3.setValue("true");
+	private Consumer consumerMock;
+
+	private ManagedLedgerConfig managedLedgerConfigMock;
+
+	final String successTopicName = "persistent://prop/use/ns-abc/successTopic";
+
+	final String subName = "subscriptionName";
+
+	private OrderedExecutor executor;
+
+	private EventLoopGroup eventLoopGroup;
+
+	private MsgFilterImpl msgFilter;
+
+	@BeforeMethod
+	public void setup() throws Exception {
+		executor = OrderedExecutor.newBuilder().numThreads(1).name("persistent-subscription-test").build();
+		eventLoopGroup = new NioEventLoopGroup();
 
-        KeyValue kv4 = new KeyValue();
-        kv4.setKey("k4");
-        kv4.setValue("3.63");
+		ServiceConfiguration svcConfig = spy(ServiceConfiguration.class);
+		svcConfig.setBrokerShutdownTimeoutMs(0L);
+		svcConfig.setLoadBalancerOverrideBrokerNicSpeedGbps(Optional.of(1.0d));
+		svcConfig.setTransactionCoordinatorEnabled(true);
+		svcConfig.setClusterName("pulsar-cluster");
+		pulsarMock = spyWithClassAndConstructorArgs(PulsarService.class, svcConfig);
+		PulsarResources pulsarResources = mock(PulsarResources.class);
+		doReturn(pulsarResources).when(pulsarMock).getPulsarResources();
+		NamespaceResources namespaceResources = mock(NamespaceResources.class);
+		doReturn(namespaceResources).when(pulsarResources).getNamespaceResources();
+
+		doReturn(Optional.of(new Policies())).when(namespaceResources).getPoliciesIfCached(any());
+
+		doReturn(new InMemTransactionBufferProvider()).when(pulsarMock).getTransactionBufferProvider();
+		doReturn(new TransactionPendingAckStoreProvider() {
+			@Override
+			public CompletableFuture<PendingAckStore> newPendingAckStore(PersistentSubscription subscription) {
+				return CompletableFuture.completedFuture(new PendingAckStore() {
+					@Override
+					public void replayAsync(PendingAckHandleImpl pendingAckHandle, ExecutorService executorService) {
+						try {
+							Field field = PendingAckHandleState.class.getDeclaredField("state");
+							field.setAccessible(true);
+							field.set(pendingAckHandle, PendingAckHandleState.State.Ready);
+						}
+						catch (NoSuchFieldException | IllegalAccessException e) {
+							fail();
+						}
+					}
+
+					@Override
+					public CompletableFuture<Void> closeAsync() {
+						return CompletableFuture.completedFuture(null);
+					}
+
+					@Override
+					public CompletableFuture<Void> appendIndividualAck(TxnID txnID,
+							List<MutablePair<PositionImpl, Integer>> positions) {
+						return CompletableFuture.completedFuture(null);
+					}
+
+					@Override
+					public CompletableFuture<Void> appendCumulativeAck(TxnID txnID, PositionImpl position) {
+						return CompletableFuture.completedFuture(null);
+					}
+
+					@Override
+					public CompletableFuture<Void> appendCommitMark(TxnID txnID, CommandAck.AckType ackType) {
+						return CompletableFuture.completedFuture(null);
+					}
+
+					@Override
+					public CompletableFuture<Void> appendAbortMark(TxnID txnID, CommandAck.AckType ackType) {
+						return CompletableFuture.completedFuture(null);
+					}
+				});
+			}
+
+			@Override
+			public CompletableFuture<Boolean> checkInitializedBefore(PersistentSubscription subscription) {
+				return CompletableFuture.completedFuture(true);
+			}
+		}).when(pulsarMock).getTransactionPendingAckStoreProvider();
+		doReturn(svcConfig).when(pulsarMock).getConfiguration();
+		doReturn(mock(Compactor.class)).when(pulsarMock).getCompactor();
+
+		mlFactoryMock = mock(ManagedLedgerFactory.class);
+		doReturn(mlFactoryMock).when(pulsarMock).getManagedLedgerFactory();
+
+		ZooKeeper zkMock = createMockZooKeeper();
+		doReturn(createMockBookKeeper(executor)).when(pulsarMock).getBookKeeperClient();
+
+		store = new ZKMetadataStore(zkMock);
+		doReturn(store).when(pulsarMock).getLocalMetadataStore();
+		doReturn(store).when(pulsarMock).getConfigurationMetadataStore();
+
+		brokerMock = spyWithClassAndConstructorArgs(BrokerService.class, pulsarMock, eventLoopGroup);
+		doNothing().when(brokerMock).unloadNamespaceBundlesGracefully();
+		doReturn(brokerMock).when(pulsarMock).getBrokerService();
+
+		ledgerMock = mock(ManagedLedgerImpl.class);
+		cursorMock = mock(ManagedCursorImpl.class);
+		managedLedgerConfigMock = mock(ManagedLedgerConfig.class);
+		doReturn(new ManagedCursorContainer()).when(ledgerMock).getCursors();
+		doReturn("mockCursor").when(cursorMock).getName();
+		doReturn(new PositionImpl(1, 50)).when(cursorMock).getMarkDeletedPosition();
+		doReturn(ledgerMock).when(cursorMock).getManagedLedger();
+		doReturn(managedLedgerConfigMock).when(ledgerMock).getConfig();
+		doReturn(false).when(managedLedgerConfigMock).isAutoSkipNonRecoverableData();
+
+		topic = new PersistentTopic(successTopicName, ledgerMock, brokerMock);
+
+		consumerMock = mock(Consumer.class);
+
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false);
+
+		msgFilter = new MsgFilterImpl();
+	}
+
+	@AfterMethod(alwaysRun = true)
+	public void teardown() throws Exception {
+		brokerMock.close(); // to clear pulsarStats
+		try {
+			pulsarMock.close();
+		}
+		catch (Exception e) {
+			log.warn("Failed to close pulsar service", e);
+			throw e;
+		}
 
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1, kv2, kv3, kv4));
+		store.close();
+		executor.shutdownNow();
+		if (eventLoopGroup != null) {
+			eventLoopGroup.shutdownGracefully().get();
+		}
+	}
+
+	@Test
+	public void testFilterEntry0() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("9");
+
+		KeyValue kv2 = new KeyValue();
+		kv2.setKey("k2");
+		kv2.setValue("vvvv");
+
+		KeyValue kv3 = new KeyValue();
+		kv3.setKey("k3");
+		kv3.setValue("false");
+
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1, kv2, kv3));
 
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "long(k1)<6 || (k2=='vvvv' && k3=='true')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"double(k1)<6 || (k2=='vvvv' && k3=='false')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
-
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
-    }
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-    @Test
-    public void testFilterEntry2() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("9");
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
+	}
+
+	@Test
+	public void testFilterEntry1() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("9");
 
-        KeyValue kv2 = new KeyValue();
-        kv2.setKey("k2");
-        kv2.setValue("vvvv");
+		KeyValue kv2 = new KeyValue();
+		kv2.setKey("k2");
+		kv2.setValue("vvvv");
 
-        KeyValue kv3 = new KeyValue();
-        kv3.setKey("k3");
-        kv3.setValue("false");
+		KeyValue kv3 = new KeyValue();
+		kv3.setKey("k3");
+		kv3.setValue("true");
 
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1, kv2, kv3));
+		KeyValue kv4 = new KeyValue();
+		kv4.setKey("k4");
+		kv4.setValue("3.63");
 
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1, kv2, kv3, kv4));
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"long(k1)<6 || (k2=='vvvv' && k3=='true')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
-    }
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-    @Test
-    public void testFilterEntry3() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("3");
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
+	}
 
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1));
+	@Test
+	public void testFilterEntry2() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("9");
 
-        // only exec `double(k1)<6` get true, then return
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
+		KeyValue kv2 = new KeyValue();
+		kv2.setKey("k2");
+		kv2.setValue("vvvv");
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+		KeyValue kv3 = new KeyValue();
+		kv3.setKey("k3");
+		kv3.setValue("false");
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1, kv2, kv3));
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
-    }
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"double(k1)<6 || (k2=='vvvv' && k3=='true')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-    @Test
-    public void testFilterEntry4() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("3");
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1));
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-        // only exec `long(k1)<6` get true, then return
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "long(k1)<6 || (k2=='vvvv' && k3=='true')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
+	}
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+	@Test
+	public void testFilterEntry3() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("3");
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1));
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
-    }
+		// only exec `double(k1)<6` get true, then return
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"double(k1)<6 || (k2=='vvvv' && k3=='true')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-    @Test
-    public void testFilterEntry5() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("9");
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-        KeyValue kv2 = new KeyValue();
-        kv2.setKey("k2");
-        kv2.setValue("kkkk");
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1, kv2));
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
+	}
 
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
+	@Test
+	public void testFilterEntry4() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("3");
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1));
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+		// only exec `long(k1)<6` get true, then return
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"long(k1)<6 || (k2=='vvvv' && k3=='true')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
-    }
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-    @Test
-    public void testFilterEntry6() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("9");
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-        KeyValue kv2 = new KeyValue();
-        kv2.setKey("k2");
-        kv2.setValue("vvvv");
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
+	}
 
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1, kv2));
+	@Test
+	public void testFilterEntry5() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("9");
 
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
+		KeyValue kv2 = new KeyValue();
+		kv2.setKey("k2");
+		kv2.setValue("kkkk");
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1, kv2));
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"double(k1)<6 || (k2=='vvvv' && k3=='true')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
-    }
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-    @Test
-    public void testFilterEntry7() {
-        KeyValue kv1 = new KeyValue();
-        kv1.setKey("k1");
-        kv1.setValue("9");
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-        KeyValue kv2 = new KeyValue();
-        kv2.setKey("k2");
-        kv2.setValue("vvvv");
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
+	}
 
-        MessageMetadata metadata = new MessageMetadata();
-        metadata.addAllProperties(List.of(kv1, kv2));
+	@Test
+	public void testFilterEntry6() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("9");
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+		KeyValue kv2 = new KeyValue();
+		kv2.setKey("k2");
+		kv2.setValue("vvvv");
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1, kv2));
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
-    }
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"double(k1)<6 || (k2=='vvvv' && k3=='true')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-    @Test
-    public void testFilterEntry8() {
-        MessageMetadata metadata = new MessageMetadata();
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-        Map<String, String> subscriptionProperties =
-                Map.of(MSG_FILTER_EXPRESSION_KEY, "double(k1)<6 || (k2=='vvvv' && k3=='true')");
-        persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-        FilterContext context = new FilterContext();
-        context.setMsgMetadata(metadata);
-        context.setSubscription(persistentSubscription);
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
+	}
 
-        Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
+	@Test
+	public void testFilterEntry7() {
+		KeyValue kv1 = new KeyValue();
+		kv1.setKey("k1");
+		kv1.setValue("9");
 
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
-    }
+		KeyValue kv2 = new KeyValue();
+		kv2.setKey("k2");
+		kv2.setValue("vvvv");
 
-    static <T> T spyWithClassAndConstructorArgs(Class<T> classToSpy, Object... args) {
-        return Mockito.mock(
-                classToSpy, Mockito.withSettings().useConstructor(args).defaultAnswer(Mockito.CALLS_REAL_METHODS));
-    }
+		MessageMetadata metadata = new MessageMetadata();
+		metadata.addAllProperties(List.of(kv1, kv2));
 
-    static MockZooKeeper createMockZooKeeper() throws Exception {
-        MockZooKeeper zk = MockZooKeeper.newInstance(MoreExecutors.newDirectExecutorService());
-        List<ACL> dummyAclList = new ArrayList<>(0);
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-        ZkUtils.createFullPathOptimistic(
-                zk,
-                "/ledgers/available/192.168.1.1:" + 5000,
-                "".getBytes(StandardCharsets.UTF_8),
-                dummyAclList,
-                CreateMode.PERSISTENT);
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-        zk.create("/ledgers/LAYOUT", "1\nflat:1".getBytes(StandardCharsets.UTF_8), dummyAclList, CreateMode.PERSISTENT);
-        return zk;
-    }
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.ACCEPT);
+	}
 
-    static NonClosableMockBookKeeper createMockBookKeeper(OrderedExecutor executor) throws Exception {
-        return spyWithClassAndConstructorArgs(NonClosableMockBookKeeper.class, executor);
-    }
+	@Test
+	public void testFilterEntry8() {
+		MessageMetadata metadata = new MessageMetadata();
 
-    // Prevent the MockBookKeeper instance from being closed when the broker is restarted within a test
-    static class NonClosableMockBookKeeper extends PulsarMockBookKeeper {
+		Map<String, String> subscriptionProperties = Map.of(MSG_FILTER_EXPRESSION_KEY,
+				"double(k1)<6 || (k2=='vvvv' && k3=='true')");
+		persistentSubscription = new PersistentSubscription(topic, subName, cursorMock, false, subscriptionProperties);
 
-        public NonClosableMockBookKeeper(OrderedExecutor executor) throws Exception {
-            super(executor);
-        }
+		FilterContext context = new FilterContext();
+		context.setMsgMetadata(metadata);
+		context.setSubscription(persistentSubscription);
 
-        @Override
-        public void close() {
-            // no-op
-        }
+		Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
 
-        @Override
-        public void shutdown() {
-            // no-op
-        }
+		Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
+	}
 
-        public void reallyShutdown() {
-            super.shutdown();
-        }
-    }
+	static <T> T spyWithClassAndConstructorArgs(Class<T> classToSpy, Object... args) {
+		return Mockito.mock(classToSpy,
+				Mockito.withSettings().useConstructor(args).defaultAnswer(Mockito.CALLS_REAL_METHODS));
+	}
+
+	static MockZooKeeper createMockZooKeeper() throws Exception {
+		MockZooKeeper zk = MockZooKeeper.newInstance(MoreExecutors.newDirectExecutorService());
+		List<ACL> dummyAclList = new ArrayList<>(0);
+
+		ZkUtils.createFullPathOptimistic(zk, "/ledgers/available/192.168.1.1:" + 5000,
+				"".getBytes(StandardCharsets.UTF_8), dummyAclList, CreateMode.PERSISTENT);
+
+		zk.create("/ledgers/LAYOUT", "1\nflat:1".getBytes(StandardCharsets.UTF_8), dummyAclList, CreateMode.PERSISTENT);
+		return zk;
+	}
+
+	static NonClosableMockBookKeeper createMockBookKeeper(OrderedExecutor executor) throws Exception {
+		return spyWithClassAndConstructorArgs(NonClosableMockBookKeeper.class, executor);
+	}
+
+	// Prevent the MockBookKeeper instance from being closed when the broker is restarted
+	// within a test
+	static class NonClosableMockBookKeeper extends PulsarMockBookKeeper {
+
+		public NonClosableMockBookKeeper(OrderedExecutor executor) throws Exception {
+			super(executor);
+		}
+
+		@Override
+		public void close() {
+			// no-op
+		}
+
+		@Override
+		public void shutdown() {
+			// no-op
+		}
+
+		public void reallyShutdown() {
+			super.shutdown();
+		}
+
+	}
+
 }
