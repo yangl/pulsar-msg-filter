@@ -25,7 +25,9 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
    entryFilterNames=pulsar-msg-filter
    
    # The directory for all the entry filter implementations
-   entryFiltersDirectory=/app/conf/plugin
+   entryFiltersDirectory=/app/plugin
+   # Location of unpacked NAR file
+   narExtractionDirectory=/app/nar
    ```
 
 3. 重启broker，查看日志，如果看到如下日志：
