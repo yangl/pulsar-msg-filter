@@ -1,4 +1,4 @@
-package com.sf.pulsar.common;
+package io.github.yangl.pulsar.common;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

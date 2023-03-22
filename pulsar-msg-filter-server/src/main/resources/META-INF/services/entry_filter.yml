@@ -3,4 +3,4 @@ name:
 description:
   msg filter plugin for Apache Pulsar broker side.
 entryFilterClass:
-  com.sf.pulsar.server.MsgFilterImpl
+  io.github.yangl.pulsar.server.MsgFilterImpl
