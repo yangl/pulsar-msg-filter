@@ -11,13 +11,12 @@ import org.apache.commons.lang3.StringUtils;
 public class MsgFilterUtils {
 
     public static final boolean filter(String expression, Supplier<Map<String, Object>> supplier) {
-        if (StringUtils.isBlank(expression)) {
+        if (StringUtils.isBlank(expression) || StringUtils.equals(Boolean.TRUE.toString(), expression)) {
             return true;
         }
 
-        Map<String, Object> env = supplier.get();
-        // expression is not null && env is null
-        if (env.isEmpty()) {
+        Map<String, Object> messageProperties = supplier.get();
+        if (messageProperties.isEmpty()) {
             if (MSGMETADATA_PROPERTIES_NULL_REJECT) {
                 return false;
             } else {
@@ -27,12 +26,12 @@ public class MsgFilterUtils {
 
         Object rs = null;
         try {
-            rs = AV_EVALUATOR.execute(expression, env);
+            rs = AV_EVALUATOR.execute(expression, messageProperties);
         } catch (Exception e) {
             log.error(
-                    "--aviator expression execute error, the expression is: {}, env is: {}",
+                    "message filter expression execute by aviator error, the expression is: {}, messageProperties is: {}",
                     expression,
-                    GSON.toJson(env),
+                    GSON.toJson(messageProperties),
                     e);
         }
 

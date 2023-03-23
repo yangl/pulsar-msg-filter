@@ -5,52 +5,75 @@ import io.github.yangl.pulsar.common.MsgFilterConstants;
 import io.github.yangl.pulsar.common.MsgFilterUtils;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.*;
 import org.apache.pulsar.client.impl.ConsumerBase;
 import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
+import org.apache.pulsar.common.naming.TopicName;
 
 @Slf4j
 public class MsgFilterConsumerInterceptor<T> implements ConsumerInterceptor<T> {
 
+    // cache for the expression, the key format is subName@__@topicName
+    private static final ConcurrentMap<String, String> SUB_TOPIC_EXP = Maps.newConcurrentMap();
+
     @Override
     public Message<T> beforeConsume(Consumer<T> consumer, Message<T> message) {
 
-        String exp = null;
-        if (consumer instanceof ConsumerBase) {
-            try {
-                ClientConfigurationData client =
-                        ((ConsumerBase<T>) consumer).getClient().getConfiguration();
-                String url = client.getServiceUrl();
+        String subName = consumer.getSubscription();
+        String topicName =
+                TopicName.getPartitionedTopicName(message.getTopicName()).toString();
 
-                PulsarAdmin admin = PulsarAdmin.builder()
-                        .serviceHttpUrl(url)
-                        .authentication(client.getAuthentication())
-                        .build();
-                Map<String, String> subscriptionProperties =
-                        admin.topics().getSubscriptionProperties(message.getTopicName(), consumer.getSubscription());
+        String key = StringUtils.join(subName, "@__@", topicName);
+        String expression = SUB_TOPIC_EXP.get(key);
 
-                exp = subscriptionProperties.get(MsgFilterConstants.MSG_FILTER_EXPRESSION_KEY);
+        if (StringUtils.isBlank(expression)) {
+            if (consumer instanceof ConsumerBase) {
+                try {
+                    ClientConfigurationData ccd =
+                            ((ConsumerBase<T>) consumer).getClient().getConfiguration();
+                    String url = ccd.getServiceUrl();
 
-                // 反射获取到的只是客户端初始化时的配置，如果使用admin客户端修改更新后通过反射获取到就不是最新的了
+                    PulsarAdmin admin = PulsarAdmin.builder()
+                            .serviceHttpUrl(url)
+                            .authentication(ccd.getAuthentication())
+                            .build();
 
-                // Field confField = ConsumerBase.class.getDeclaredField("conf");
-                // if (!confField.canAccess(consumer)) {
-                // confField.setAccessible(true);
-                // }
-                // ConsumerConfigurationData conf =
-                // (ConsumerConfigurationData)confField.get(consumer);
-                // Map<String, String> subscriptionProperties =
-                // conf.getSubscriptionProperties();
+                    Map<String, String> subp = admin.topics().getSubscriptionProperties(topicName, subName);
+                    admin.close();
 
-            } catch (PulsarClientException | PulsarAdminException e) {
-                throw new RuntimeException(e);
+                    expression = subp.get(MsgFilterConstants.MSG_FILTER_EXPRESSION_KEY);
+
+                    if (StringUtils.isBlank(expression)) {
+                        expression = Boolean.TRUE.toString();
+                    }
+
+                    SUB_TOPIC_EXP.put(key, expression);
+
+                    // What is obtained through reflection is only the configuration of the client during
+                    // initialization. If it is updated or modified using the admin client, the configuration obtained
+                    // through reflection will not be the latest.
+
+                    // Field confField = ConsumerBase.class.getDeclaredField("conf");
+                    // if (!confField.canAccess(consumer)) {
+                    // confField.setAccessible(true);
+                    // }
+                    // ConsumerConfigurationData conf =
+                    // (ConsumerConfigurationData)confField.get(consumer);
+                    // Map<String, String> subp =
+                    // conf.getSubscriptionProperties();
+
+                } catch (PulsarClientException | PulsarAdminException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
 
-        boolean accept = MsgFilterUtils.filter(exp, () -> {
+        boolean accept = MsgFilterUtils.filter(expression, () -> {
             Map<String, Object> env = Maps.newHashMap();
             message.getProperties().forEach((k, v) -> env.put(k, v));
             return env;
@@ -60,8 +83,9 @@ public class MsgFilterConsumerInterceptor<T> implements ConsumerInterceptor<T> {
             try {
                 consumer.acknowledge(message);
             } catch (PulsarClientException e) {
-                log.error("client filter drop the message", e);
+                log.error("consumer interceptor drop the message", e);
             } finally {
+                // drop the message
                 return null;
             }
         }
