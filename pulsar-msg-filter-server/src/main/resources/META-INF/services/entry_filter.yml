@@ -1,6 +1,6 @@
 name:
   pulsar-msg-filter
 description:
-  msg filter plugin for Apache Pulsar broker side.
+  msg filter plugin for Apache Pulsar in broker side.
 entryFilterClass:
-  io.github.yangl.pulsar.server.MsgFilterImpl
+  io.github.yangl.pulsar.server.entryfilter.MsgFilterImpl
