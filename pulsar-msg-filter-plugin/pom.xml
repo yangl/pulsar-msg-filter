@@ -9,7 +9,7 @@
         <version>2.10.3.4-SNAPSHOT</version>
     </parent>
 
-    <artifactId>pulsar-msg-filter-server</artifactId>
+    <artifactId>pulsar-msg-filter-plugin</artifactId>
 
     <dependencies>
         <dependency>

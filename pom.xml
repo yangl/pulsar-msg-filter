@@ -17,9 +17,9 @@
 
 
     <modules>
-        <module>pulsar-msg-filter-client</module>
+        <module>pulsar-msg-filter-interceptor</module>
         <module>pulsar-msg-filter-common</module>
-        <module>pulsar-msg-filter-server</module>
+        <module>pulsar-msg-filter-plugin</module>
     </modules>
 
     <properties>
