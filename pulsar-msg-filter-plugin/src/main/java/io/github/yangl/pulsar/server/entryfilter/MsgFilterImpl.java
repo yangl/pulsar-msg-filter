@@ -7,14 +7,12 @@ import com.google.common.collect.Maps;
 import io.github.yangl.pulsar.common.MsgFilterUtils;
 import java.util.Map;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
 
-@Slf4j
 public class MsgFilterImpl implements EntryFilter {
 
     @Override

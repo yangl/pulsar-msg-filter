@@ -1,7 +1,5 @@
 package io.github.yangl.pulsar.common;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.googlecode.aviator.AviatorEvaluator;
 import com.googlecode.aviator.AviatorEvaluatorInstance;
 import com.googlecode.aviator.Feature;
@@ -10,8 +8,6 @@ import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
 public class MsgFilterConstants {
-
-    public static final Gson GSON = new GsonBuilder().create();
 
     public static final String MSG_FILTER_EXPRESSION_KEY = "pulsar-msg-filter-expression";
 

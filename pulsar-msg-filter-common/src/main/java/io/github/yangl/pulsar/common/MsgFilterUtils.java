@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 
 @Slf4j
 public class MsgFilterUtils {
@@ -31,7 +32,7 @@ public class MsgFilterUtils {
             log.error(
                     "message filter expression execute by aviator error, the expression is: {}, messageProperties is: {}",
                     expression,
-                    GSON.toJson(messageProperties),
+                    new ToStringBuilder(messageProperties),
                     e);
         }
 
