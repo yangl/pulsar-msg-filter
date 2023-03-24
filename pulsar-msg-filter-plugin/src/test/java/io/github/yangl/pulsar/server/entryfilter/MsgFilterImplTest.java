@@ -49,6 +49,7 @@ import org.apache.pulsar.broker.service.Consumer;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.persistent.PersistentTopic;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
+import org.apache.pulsar.broker.service.plugin.EntryFilter.FilterResult;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
 import org.apache.pulsar.broker.transaction.buffer.impl.InMemTransactionBufferProvider;
 import org.apache.pulsar.broker.transaction.pendingack.PendingAckStore;
@@ -462,7 +463,7 @@ public class MsgFilterImplTest {
         
         Entry entry = EntryImpl.create(1, 1, "hello".getBytes(StandardCharsets.UTF_8));
         
-        Assert.assertEquals(msgFilter.filterEntry(entry, context), EntryFilter.FilterResult.REJECT);
+        Assert.assertEquals(msgFilter.filterEntry(entry, context), FilterResult.ACCEPT);
     }
     
     static <T> T spyWithClassAndConstructorArgs(Class<T> classToSpy, Object... args) {
