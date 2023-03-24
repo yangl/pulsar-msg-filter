@@ -1,5 +1,5 @@
 # pulsar-msg-filter-plugin
-Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broker side.
+message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), both support server-side and client-side.
 
 
 ----------------------------------------
@@ -14,11 +14,11 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 
 ### 使用说明
 
-1. 下载[pulsar-msg-filter-plugin-VERSION.nar](https://github.com/yangl/pulsar-msg-filter-plugin/releases/)插件并保存至指定目录，如/app/conf/plugin
+1. 下载[pulsar-msg-filter-plugin-VERSION.nar](https://github.com/yangl/pulsar-msg-filter/releases/)插件并保存至指定目录，如/app/conf/plugin
 
 2. 修改pulsar broker.conf配置（version >= 2.10），插件名称`pulsar-msg-filter`
 
-   ```yaml
+   ```yml=
    # Class name of Pluggable entry filter that can decide whether the entry needs to be filtered
    # You can use this class to decide which entries can be sent to consumers.
    # Multiple classes need to be separated by commas.
@@ -38,35 +38,41 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 
 4. 验证（option）
 
-   1. **发送方**构建Producer实例时关闭 `batch` 操作 **.enableBatching(false)**
-   
-      ```java
-      Producer<String> producer = client.newProducer(Schema.STRING)
-          .topic("test-topic-1")
-          .enableBatching(false)
-          .create();
-      
-      producer.newMessage()
-          .property("k1","7")
-          .property("k2", "vvvv")
-          .property("k3", "true")
-          .value("hi, this msg from `pulsar-msg-filter-plugin`")
-          .send();
-      ```
+    1. **发送方**构建Producer实例时关闭 `batch` 操作 **.enableBatching(false)**
 
-   2. **消费方**创建Consumer时添加 **pulsar-msg-filter-expression** 订阅属性:
-   
-      ```java
-      Map<String, String> subscriptionProperties = Maps.newHashMap();
-      subscriptionProperties.put("pulsar-msg-filter-expression", "long(k1)%10==7 || (k2=='vvvv' && k3=='false')");
-      
-      Consumer consumer = client.newConsumer()
+       ```java=
+       Producer<String> producer = client.newProducer(Schema.STRING)
+           .topic("test-topic-1")
+           .enableBatching(false)
+           .create();
+        
+       producer.newMessage()
+           .property("k1","7")
+           .property("k2", "vvvv")
+           .property("k3", "true")
+           .value("hi, this msg from `pulsar-msg-filter-plugin`")
+           .send();
+       ```
+
+    2. **消费方**创建Consumer时添加 **pulsar-msg-filter-expression** 订阅属性:
+
+       通过admin命令行配置订阅组**过滤条件key**pulsar-msg-filter-expression的过滤器表达式
+
+        ```java=
+        admin topics update-subscription-properties --property pulsar-msg-filter-expression=long(k1)%10==7||(k2=='vvvv'&&k3=='false') --subscription=s1 t1
+          
+        admin topics get-subscription-properties --subscription=s1 t1
+          
+        ---------------
+          
+        subscriptionProperties.put("pulsar-msg-filter-expression", "long(k1)%10==7 || (k2=='vvvv' && k3=='false')");
+          
+        Consumer consumer = client.newConsumer()
           .topic("test-topic-1")
           .subscriptionName("my-subscription-1")
-          .subscriptionProperties(subscriptionProperties)
           .subscribe();
-      ```
-   
+        ```
+
 
 **注意:**
 
@@ -79,7 +85,7 @@ Msg filter plugin for [Apache Pulsar](https://github.com/apache/pulsar) on broke
 
 ### License
 
-`pulsar-msg-filter-plugin` is licensed under the [GPLv3 License](./LICENSE).
+`pulsar-msg-filter` is licensed under the [AGPLv3 License](./LICENSE).
 
 ### Links
 
