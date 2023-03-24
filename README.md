@@ -60,13 +60,13 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
 
         ```java=
         admin topics update-subscription-properties --property pulsar-msg-filter-expression=long(k1)%10==7||(k2=='vvvv'&&k3=='false') --subscription=s1 t1
-          
+        
         admin topics get-subscription-properties --subscription=s1 t1
-          
+        
+        如上配置修改后立马生效，无需在创建Consumer时再配置 
+        
         ---------------
-          
-        subscriptionProperties.put("pulsar-msg-filter-expression", "long(k1)%10==7 || (k2=='vvvv' && k3=='false')");
-          
+           
         Consumer consumer = client.newConsumer()
           .topic("test-topic-1")
           .subscriptionName("my-subscription-1")
