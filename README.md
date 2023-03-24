@@ -12,13 +12,13 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
 2. 支持常见条件表达式，满足各种业务过滤场景
 3. ...
 
-### 使用说明
+### pulsar-msg-filter-plugin 使用说明 [服务端消息过滤]
 
 1. 下载[pulsar-msg-filter-plugin-VERSION.nar](https://github.com/yangl/pulsar-msg-filter/releases/)插件并保存至指定目录，如/app/conf/plugin
 
 2. 修改pulsar broker.conf配置（version >= 2.10），插件名称`pulsar-msg-filter`
 
-   ```yml=
+   ```yml
    # Class name of Pluggable entry filter that can decide whether the entry needs to be filtered
    # You can use this class to decide which entries can be sent to consumers.
    # Multiple classes need to be separated by commas.
@@ -40,7 +40,7 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
 
     1. **发送方**构建Producer实例时关闭 `batch` 操作 **.enableBatching(false)**
 
-       ```java=
+       ```
        Producer<String> producer = client.newProducer(Schema.STRING)
            .topic("test-topic-1")
            .enableBatching(false)
@@ -58,30 +58,54 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
 
        通过admin命令行配置订阅组**过滤条件key**pulsar-msg-filter-expression的过滤器表达式
 
-        ```java=
-        admin topics update-subscription-properties --property pulsar-msg-filter-expression=long(k1)%10==7||(k2=='vvvv'&&k3=='false') --subscription=s1 t1
+        ```
+        admin topics update-subscription-properties --property pulsar-msg-filter-expression=long(k1)%10==7||(k2=='vvvv'&&k3=='false') --subscription=订阅组名称 主题
         
-        admin topics get-subscription-properties --subscription=s1 t1
+        admin topics get-subscription-properties --subscription=订阅组名称 主题
         
-        如上配置修改后立马生效，无需在创建Consumer时再配置 
+        ## 如上配置修改后立马生效，无需在创建Consumer时再配置 
         
         ---------------
            
         Consumer consumer = client.newConsumer()
-          .topic("test-topic-1")
-          .subscriptionName("my-subscription-1")
+          .subscriptionName("订阅组名称")
+          .topic("主题")
           .subscribe();
         ```
 
 
-**注意:**
+**注意:**  pulsar-msg-filter-plugin插件（服务端）依赖消息的`MessageMetadata`，故需关闭发送端的batch操作，否则无效（`.enableBatching(false)`）
 
-1. 消息过滤过滤依赖`MessageMetadata`，故需关闭发送端的batch操作（默认开启）
-2. SubscriptionProperties中的订阅**过滤条件key**固定为**`pulsar-msg-filter-expression`**
-3. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意将其类型转换至目标类型
-4. AviatorScript的`false`判断个人建议直接使用字符串的 `==`  `true/false`比较，AviatorScript只有`nil false`为false，其他全部为true
-5. `&& ||` 支持短路
-6. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见其 [函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
+
+
+### pulsar-msg-filter-interceptor 使用说明 [客户端消息过滤]
+
+1. 添加 pulsar-msg-filter-interceptor 依赖
+   ```xml
+    <dependency>
+        <groupId>io.github.yangl</groupId>
+        <artifactId>pulsar-msg-filter-interceptor</artifactId>
+        <version>VERSION</version>
+    </dependency>
+   ```
+
+2. 创建Consumer实例时配置 **MsgFilterConsumerInterceptor** 过滤器
+    ```
+    Consumer<String> consumer = client.newConsumer(Schema.STRING)
+            .subscriptionName("订阅组名称")
+            .topic("主题")
+            .intercept(new MsgFilterConsumerInterceptor<>())
+            .subscribe();
+    ```
+
+
+**注意:**
+1. 订阅组的过滤表达式key**固定为**`pulsar-msg-filter-expression`**, admin topics update-subscription-properties --property pulsar-msg-filter-expression=**表达式**
+2. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意将其类型转换至目标类型
+3. AviatorScript的`false`判断个人建议直接使用字符串的 `==`  `true/false`比较，AviatorScript只有`nil false`为false，其他全部为true
+4. `&& ||` 支持短路
+5. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见其 [函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
+
 
 ### License
 

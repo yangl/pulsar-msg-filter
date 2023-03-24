@@ -30,12 +30,12 @@ public class MsgFilterConstants {
     public static final boolean MSGMETADATA_PROPERTIES_NULL_REJECT;
     
     static {
-        String nullReject = System.getProperty(
+        String rejVal = System.getProperty(
                 MSGMETADATA_PROPERTIES_NULL_REJECT_KEY, System.getenv(MSGMETADATA_PROPERTIES_NULL_REJECT_KEY));
-        if (StringUtils.isNotBlank(nullReject)) {
-            MSGMETADATA_PROPERTIES_NULL_REJECT = Boolean.parseBoolean(nullReject);
+        if (StringUtils.isNotBlank(rejVal)) {
+            MSGMETADATA_PROPERTIES_NULL_REJECT = Boolean.parseBoolean(rejVal);
         } else {
-            MSGMETADATA_PROPERTIES_NULL_REJECT = true;
+            MSGMETADATA_PROPERTIES_NULL_REJECT = false;
         }
     }
     
