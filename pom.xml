@@ -6,12 +6,12 @@
     <parent>
         <groupId>org.apache</groupId>
         <artifactId>apache</artifactId>
-        <version>27</version>
+        <version>29</version>
     </parent>
     
     <groupId>io.github.yangl</groupId>
     <artifactId>pulsar-msg-filter</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.6-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>${project.artifactId}</name>
     <description>message filter plugin for apache pulsar, both support server-side and client-side.</description>
@@ -25,6 +25,7 @@
     <properties>
         <pulsar.groupId>com.datastax.oss</pulsar.groupId>
         <pulsar.version>2.10.4.0</pulsar.version>
+        
         <commons-lang3.version>3.12.0</commons-lang3.version>
         <aviator.version>5.3.3</aviator.version>
         <lombok.version>1.18.26</lombok.version>
@@ -35,23 +36,11 @@
         <powermock.version>2.0.9</powermock.version>
         <awaitility.version>4.2.0</awaitility.version>
         
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
         <maven.compiler.release>11</maven.compiler.release>
     </properties>
     
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-lang3</artifactId>
-                <version>${commons-lang3.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.googlecode.aviator</groupId>
-                <artifactId>aviator</artifactId>
-                <version>${aviator.version}</version>
-            </dependency>
             
             <dependency>
                 <groupId>${pulsar.groupId}</groupId>
@@ -64,7 +53,6 @@
                 <artifactId>pulsar-client-admin</artifactId>
                 <version>${pulsar.version}</version>
             </dependency>
-            
             <dependency>
                 <groupId>${pulsar.groupId}</groupId>
                 <artifactId>pulsar-broker</artifactId>
@@ -81,7 +69,16 @@
                     </exclusion>
                 </exclusions>
             </dependency>
-            
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.googlecode.aviator</groupId>
+                <artifactId>aviator</artifactId>
+                <version>${aviator.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
@@ -146,8 +143,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
                     <release>${maven.compiler.release}</release>
                     <encoding>${project.build.sourceEncoding}</encoding>
                     <compilerArgs>
@@ -321,7 +316,17 @@
                     <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
                 </snapshotRepository>
             </distributionManagement>
-            
+        </profile>
+        
+        <profile>
+            <id>apache-pulsar</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
+                <pulsar.version>2.11.0</pulsar.version>
+            </properties>
         </profile>
     </profiles>
     

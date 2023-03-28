@@ -5,10 +5,14 @@
     <parent>
         <groupId>io.github.yangl</groupId>
         <artifactId>pulsar-msg-filter</artifactId>
-        <version>0.1.5</version>
+        <version>0.1.6-SNAPSHOT</version>
     </parent>
     
     <artifactId>pulsar-msg-filter-interceptor</artifactId>
+    
+    <properties>
+        <maven.compiler.release>8</maven.compiler.release>
+    </properties>
     
     <dependencies>
         <dependency>
