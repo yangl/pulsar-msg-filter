@@ -11,7 +11,7 @@
     
     <groupId>io.github.yangl</groupId>
     <artifactId>pulsar-msg-filter</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
     <packaging>pom</packaging>
     <name>${project.artifactId}</name>
     <description>message filter plugin for apache pulsar, both support server-side and client-side.</description>
@@ -305,6 +305,7 @@
                             <serverId>ossrh</serverId>
                             <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
                             <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                            <stagingProgressTimeoutMinutes>15</stagingProgressTimeoutMinutes>
                         </configuration>
                     </plugin>
                 </plugins>

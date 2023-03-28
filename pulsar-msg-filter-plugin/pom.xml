@@ -5,10 +5,11 @@
     <parent>
         <groupId>io.github.yangl</groupId>
         <artifactId>pulsar-msg-filter</artifactId>
-        <version>0.1.4</version>
+        <version>0.1.5</version>
     </parent>
-    
     <artifactId>pulsar-msg-filter-plugin</artifactId>
+    
+    <packaging>nar</packaging>
     
     <dependencies>
         <dependency>
@@ -65,12 +66,11 @@
     </dependencies>
     
     <build>
-        <finalName>${project.artifactId}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.nifi</groupId>
                 <artifactId>nifi-nar-maven-plugin</artifactId>
-                <version>1.4.0</version>
+                <version>1.5.0</version>
                 <extensions>true</extensions>
                 <configuration>
                     <finalName>${project.artifactId}-${project.version}</finalName>
