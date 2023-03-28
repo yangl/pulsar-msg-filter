@@ -56,12 +56,12 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
 
     2. **消费方**创建Consumer时添加 **pulsar-msg-filter-expression** 订阅属性:
 
-       通过admin命令行配置订阅组**过滤条件key**pulsar-msg-filter-expression的过滤器表达式
+       通过admin命令行配置订阅组**过滤条件key**pulsar-msg-filter-expression的过滤器表达式(复杂表达式使用 "" 防止被转义)
 
         ```
-        admin topics update-subscription-properties --property pulsar-msg-filter-expression=long(k1)%10==7||(k2=='vvvv'&&k3=='false') --subscription=订阅组名称 主题
+        pulsar-admin topics update-subscription-properties --property --property pulsar-msg-filter-expression="double(k1)<6 || (k2=='vvvv' && k3=='true')" --subscription 订阅组名称 主题
         
-        admin topics get-subscription-properties --subscription=订阅组名称 主题
+        pulsar-admin topics get-subscription-properties --subscription 订阅组名称 主题
         
         ## 如上配置修改后立马生效，无需在创建Consumer时再配置 
         
