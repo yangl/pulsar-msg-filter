@@ -42,7 +42,7 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
 
     1. **发送方**构建Producer实例时关闭 `batch` 操作 **.enableBatching(false)**
 
-       ```
+       ```java
        Producer<String> producer = client.newProducer(Schema.STRING)
            .topic("test-topic-1")
            .enableBatching(false)
@@ -60,7 +60,7 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
 
        通过admin命令行配置订阅组**过滤条件key**pulsar-msg-filter-expression的过滤器表达式(复杂表达式使用 "" 防止被转义)
 
-        ```
+        ```shell
         pulsar-admin topics update-subscription-properties --property --property pulsar-msg-filter-expression="double(k1)<6 || (k2=='vvvv' && k3=='true')" --subscription 订阅组名称 主题
         
         pulsar-admin topics get-subscription-properties --subscription 订阅组名称 主题
@@ -92,15 +92,17 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
    ```
 
 2. 创建Consumer实例时配置 **MsgFilterConsumerInterceptor** 过滤器
-    ```
+    ```java
     Consumer<String> consumer = client.newConsumer(Schema.STRING)
             .subscriptionName("订阅组名称")
             .topic("主题")
             .intercept(MsgFilterConsumerInterceptor.<String>builder().build())
             .subscribe();
     ```
-**说明:** 如果创建client时使用的是 `pulsar://` 开头的地址，需额外设置 `.webServiceUrl(YOUR_HTTP_SERVICE_URL)` http:// 参数。
- .intercept(MsgFilterConsumerInterceptor.<String>builder().webServiceUrl(YOUR_HTTP_SERVICE_URL).build())
+    **说明:** 如果创建client时使用的是 `pulsar://` 开头的地址，需额外使用`http://`设置 `.webServiceUrl(YOUR_HTTP_SERVICE_URL)` 参数。
+    ```java
+    .intercept(MsgFilterConsumerInterceptor.<String>builder().webServiceUrl(YOUR_HTTP_SERVICE_URL).build())
+    ```
 
 
 
