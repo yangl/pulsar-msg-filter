@@ -80,7 +80,7 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
 
 
 
-### pulsar-msg-filter-interceptor 使用说明 [客户端消息过滤]
+<details><summary><b>pulsar-msg-filter-interceptor 使用说明 [客户端消息过滤]</b></summary>
 
 1. 添加 pulsar-msg-filter-interceptor 依赖
    ```xml
@@ -104,7 +104,7 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
     .intercept(MsgFilterConsumerInterceptor.<String>builder().webServiceUrl(YOUR_HTTP_SERVICE_URL).build())
     ```
 
-
+</details>
 
 ### 注意
 1. 订阅组的过滤表达式key**固定为**`pulsar-msg-filter-expression`**, admin topics update-subscription-properties --property pulsar-msg-filter-expression=**表达式**
