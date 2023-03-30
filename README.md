@@ -5,6 +5,7 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
 ----------------------------------------
 
 `pulsar-msg-filter-plugin` 是一个基于`PIP 105: Support pluggable entry filter in Dispatcher` 为 [Apache Pulsar](https://github.com/apache/pulsar) 实现的 **服务端** 消息过滤插件。
+
 `pulsar-msg-filter-interceptor` 是一个基于 Pulsar `ConsumerInterceptor` 实现的 **客户端** 消息过滤拦截器。
 
 ### 特性介绍
@@ -75,7 +76,7 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
         ```
 
 
-**注意:**  pulsar-msg-filter-plugin插件（服务端）依赖消息的`MessageMetadata`，故需**关闭发送端的batch**操作，否则无效（`.enableBatching(false)`）
+**说明:**  pulsar-msg-filter-plugin插件（服务端）依赖消息的`MessageMetadata`，故需**关闭发送端的batch**操作，否则无效（`.enableBatching(false)`）
 
 
 
@@ -96,13 +97,14 @@ message filter for [Apache Pulsar](https://github.com/apache/pulsar), both suppo
             .subscriptionName("订阅组名称")
             .topic("主题")
             .intercept(MsgFilterConsumerInterceptor.<String>builder().build())
-// 当client使用 `pulsar://` 地址创建的时候需额外配置HTTP地址 `.webServiceUrl(YOUR_HTTP_SERVICE_URL)`
-//          .intercept(MsgFilterConsumerInterceptor.<String>builder().webServiceUrl(YOUR_HTTP_SERVICE_URL).build())
             .subscribe();
     ```
+**说明:** 如果创建client时使用的是 `pulsar://` 开头的地址，需额外设置 `.webServiceUrl(YOUR_HTTP_SERVICE_URL)` http:// 参数。
+ .intercept(MsgFilterConsumerInterceptor.<String>builder().webServiceUrl(YOUR_HTTP_SERVICE_URL).build())
 
 
-**注意:**
+
+### 注意
 1. 订阅组的过滤表达式key**固定为**`pulsar-msg-filter-expression`**, admin topics update-subscription-properties --property pulsar-msg-filter-expression=**表达式**
 2. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意将其类型转换至目标类型
 3. AviatorScript的`false`判断个人建议直接使用字符串的 `==`  `true/false`比较，AviatorScript只有`nil false`为false，其他全部为true
