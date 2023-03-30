@@ -1,10 +1,11 @@
-# pulsar-msg-filter-plugin
-message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), both support server-side and client-side.
+# pulsar-msg-filter
+message filter for [Apache Pulsar](https://github.com/apache/pulsar), both support server-side and client-side.
 
 
 ----------------------------------------
 
 `pulsar-msg-filter-plugin` 是一个基于`PIP 105: Support pluggable entry filter in Dispatcher` 为 [Apache Pulsar](https://github.com/apache/pulsar) 实现的 **服务端** 消息过滤插件。
+`pulsar-msg-filter-interceptor` 是一个基于 Pulsar `ConsumerInterceptor` 实现的 **客户端** 消息过滤拦截器。
 
 ### 特性介绍
 
@@ -74,7 +75,7 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
         ```
 
 
-**注意:**  pulsar-msg-filter-plugin插件（服务端）依赖消息的`MessageMetadata`，故需关闭发送端的batch操作，否则无效（`.enableBatching(false)`）
+**注意:**  pulsar-msg-filter-plugin插件（服务端）依赖消息的`MessageMetadata`，故需**关闭发送端的batch**操作，否则无效（`.enableBatching(false)`）
 
 
 
@@ -94,7 +95,9 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
     Consumer<String> consumer = client.newConsumer(Schema.STRING)
             .subscriptionName("订阅组名称")
             .topic("主题")
-            .intercept(new MsgFilterConsumerInterceptor<>())
+            .intercept(MsgFilterConsumerInterceptor.<String>builder().build())
+// 当client使用 `pulsar://` 地址创建的时候需额外配置HTTP地址 `.webServiceUrl(YOUR_HTTP_SERVICE_URL)`
+//          .intercept(MsgFilterConsumerInterceptor.<String>builder().webServiceUrl(YOUR_HTTP_SERVICE_URL).build())
             .subscribe();
     ```
 
@@ -103,8 +106,7 @@ message filter plugin for [Apache Pulsar](https://github.com/apache/pulsar), bot
 1. 订阅组的过滤表达式key**固定为**`pulsar-msg-filter-expression`**, admin topics update-subscription-properties --property pulsar-msg-filter-expression=**表达式**
 2. 由于pulsar message header的key&value全部为`String`类型，在使用表达式的时候注意将其类型转换至目标类型
 3. AviatorScript的`false`判断个人建议直接使用字符串的 `==`  `true/false`比较，AviatorScript只有`nil false`为false，其他全部为true
-4. `&& ||` 支持短路
-5. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见其 [函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
+4. 过滤引擎使用[AviatorScript](https://github.com/killme2008/aviatorscript) (感谢晓丹)，其内置函数详见其 [函数库列表](https://www.yuque.com/boyan-avfmj/aviatorscript/ashevw)
 
 
 ### License

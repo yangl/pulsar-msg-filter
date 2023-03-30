@@ -17,45 +17,49 @@ package io.github.yangl.pulsar.client.interceptor;
 import com.google.common.collect.Maps;
 import io.github.yangl.pulsar.common.MsgFilterConstants;
 import io.github.yangl.pulsar.common.MsgFilterUtils;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.api.*;
+import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.ConsumerInterceptor;
+import org.apache.pulsar.client.api.Message;
+import org.apache.pulsar.client.api.MessageId;
+import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.impl.ConsumerBase;
 import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.common.naming.TopicName;
 
+import java.util.Map;
+import java.util.Set;
+
 @Slf4j
+@Builder
 public class MsgFilterConsumerInterceptor<T> implements ConsumerInterceptor<T> {
     
-    // cache for the expression, the key format is subName@__@topicName
-    private static final ConcurrentMap<String, String> SUB_TOPIC_EXP = Maps.newConcurrentMap();
+    private String webServiceUrl;
+    private volatile String expression;
     
     @Override
     public Message<T> beforeConsume(Consumer<T> consumer, Message<T> message) {
-        
-        String subName = consumer.getSubscription();
-        String topicName =
-                TopicName.getPartitionedTopicName(message.getTopicName()).toString();
-        
-        String key = StringUtils.join(subName, "@__@", topicName);
-        String expression = SUB_TOPIC_EXP.get(key);
-        
         if (StringUtils.isBlank(expression)) {
             if (consumer instanceof ConsumerBase) {
                 try {
                     ClientConfigurationData ccd =
                             ((ConsumerBase<T>) consumer).getClient().getConfiguration();
                     String url = ccd.getServiceUrl();
+                    if (StringUtils.isNotBlank(webServiceUrl)) {
+                        url = webServiceUrl;
+                    }
                     
                     PulsarAdmin admin = PulsarAdmin.builder()
                             .serviceHttpUrl(url)
                             .authentication(ccd.getAuthentication())
                             .build();
+                    
+                    String subName = consumer.getSubscription();
+                    String topicName = TopicName.getPartitionedTopicName(message.getTopicName()).toString();
                     
                     Map<String, String> subp = admin.topics().getSubscriptionProperties(topicName, subName);
                     admin.close();
@@ -65,8 +69,6 @@ public class MsgFilterConsumerInterceptor<T> implements ConsumerInterceptor<T> {
                     if (StringUtils.isBlank(expression)) {
                         expression = Boolean.TRUE.toString();
                     }
-                    
-                    SUB_TOPIC_EXP.put(key, expression);
                     
                     // What is obtained through reflection is only the configuration of the client during
                     // initialization. If it is updated or modified using the admin client, the configuration obtained
@@ -85,6 +87,7 @@ public class MsgFilterConsumerInterceptor<T> implements ConsumerInterceptor<T> {
                     throw new RuntimeException(e);
                 }
             }
+            
         }
         
         boolean accept = MsgFilterUtils.filter(expression, () -> {
