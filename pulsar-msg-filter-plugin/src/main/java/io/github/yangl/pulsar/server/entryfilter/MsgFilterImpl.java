@@ -14,24 +14,33 @@
  */
 package io.github.yangl.pulsar.server.entryfilter;
 
-import static io.github.yangl.pulsar.common.MsgFilterConstants.AV_EVALUATOR;
-import static io.github.yangl.pulsar.common.MsgFilterConstants.MSG_FILTER_EXPRESSION_KEY;
-
 import com.google.common.collect.Maps;
 import io.github.yangl.pulsar.common.MsgFilterUtils;
-import java.util.Map;
-import java.util.function.Supplier;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
+import org.apache.pulsar.common.api.proto.MessageMetadata;
+
+import java.util.Map;
+import java.util.function.Supplier;
+
+import static io.github.yangl.pulsar.common.MsgFilterConstants.AV_EVALUATOR;
+import static io.github.yangl.pulsar.common.MsgFilterConstants.MSG_FILTER_EXPRESSION_KEY;
 
 public class MsgFilterImpl implements EntryFilter {
     
     @Override
     public FilterResult filterEntry(Entry entry, FilterContext context) {
         FilterResult rs = FilterResult.ACCEPT;
+        
+        MessageMetadata metadata = context.getMsgMetadata();
+        if (metadata != null && metadata.hasMarkerType()) {
+            // special messages...ignore
+            return rs;
+        }
+        
         // consumer subscription expression property
         String expression = null;
         Subscription subscription = context.getSubscription();
