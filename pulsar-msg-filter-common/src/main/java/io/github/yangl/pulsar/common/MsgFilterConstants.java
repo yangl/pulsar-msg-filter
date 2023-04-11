@@ -18,8 +18,9 @@ import com.googlecode.aviator.AviatorEvaluator;
 import com.googlecode.aviator.AviatorEvaluatorInstance;
 import com.googlecode.aviator.Feature;
 import com.googlecode.aviator.Options;
-import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
+
+import java.util.Set;
 
 public class MsgFilterConstants {
     
@@ -43,6 +44,9 @@ public class MsgFilterConstants {
     
     static {
         AV_EVALUATOR = AviatorEvaluator.getInstance();
+        AV_EVALUATOR.setCachedExpressionByDefault(true);
+        AV_EVALUATOR.useLRUExpressionCache(200);
+        
         // only enable `If` `Return` feature
         Set<Feature> features = Feature.asSet(Feature.If, Feature.Return);
         AV_EVALUATOR.setOption(Options.FEATURE_SET, features);
