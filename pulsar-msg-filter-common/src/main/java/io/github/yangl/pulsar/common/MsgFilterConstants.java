@@ -40,7 +40,7 @@ public class MsgFilterConstants {
         }
     }
     
-    public static final AviatorEvaluatorInstance AV_EVALUATOR;
+    static final AviatorEvaluatorInstance AV_EVALUATOR;
     
     static {
         AV_EVALUATOR = AviatorEvaluator.getInstance();

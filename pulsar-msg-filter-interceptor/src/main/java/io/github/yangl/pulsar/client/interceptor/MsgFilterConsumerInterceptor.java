@@ -90,21 +90,16 @@ public class MsgFilterConsumerInterceptor<T> implements ConsumerInterceptor<T> {
             
         }
         
-        boolean accept = MsgFilterUtils.filter(expression, () -> {
-            Map<String, Object> env = Maps.newHashMap();
-            message.getProperties().forEach((k, v) -> env.put(k, v));
-            return env;
-        });
+        boolean accept = MsgFilterUtils.filter(expression, () -> Maps.newHashMap(message.getProperties()));
         
         if (!accept) {
             try {
                 consumer.acknowledge(message);
             } catch (PulsarClientException e) {
                 log.error("consumer interceptor drop the message", e);
-            } finally {
-                // drop the message
-                return null;
             }
+            // drop the message
+            return null;
         }
         
         return message;
@@ -133,5 +128,6 @@ public class MsgFilterConsumerInterceptor<T> implements ConsumerInterceptor<T> {
     
     @Override
     public void close() {
+        MsgFilterUtils.clearExpressionCache();
     }
 }

@@ -14,18 +14,21 @@
  */
 package io.github.yangl.pulsar.common;
 
-import static io.github.yangl.pulsar.common.MsgFilterConstants.*;
-
-import java.util.Map;
-import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
+import java.util.Map;
+import java.util.function.Supplier;
+
+import static io.github.yangl.pulsar.common.MsgFilterConstants.AV_EVALUATOR;
+import static io.github.yangl.pulsar.common.MsgFilterConstants.MSGMETADATA_PROPERTIES_NULL_REJECT;
+
 @Slf4j
 public class MsgFilterUtils {
     
-    public static final boolean filter(String expression, Supplier<Map<String, Object>> supplier) {
+    // filter the message by expression
+    public static boolean filter(String expression, Supplier<Map<String, Object>> supplier) {
         if (StringUtils.isBlank(expression) || StringUtils.equals(Boolean.TRUE.toString(), expression)) {
             return true;
         }
@@ -50,10 +53,16 @@ public class MsgFilterUtils {
                     e);
         }
         
-        if (rs != null && Boolean.FALSE.equals(rs)) {
+        if (Boolean.FALSE.equals(rs)) {
             return false;
         }
         
         return true;
     }
+    
+    // clear the expression cache
+    public static void clearExpressionCache() {
+        AV_EVALUATOR.clearExpressionCache();
+    }
+    
 }

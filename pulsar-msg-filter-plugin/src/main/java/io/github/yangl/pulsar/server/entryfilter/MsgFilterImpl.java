@@ -26,7 +26,6 @@ import org.apache.pulsar.common.api.proto.MessageMetadata;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static io.github.yangl.pulsar.common.MsgFilterConstants.AV_EVALUATOR;
 import static io.github.yangl.pulsar.common.MsgFilterConstants.MSG_FILTER_EXPRESSION_KEY;
 
 public class MsgFilterImpl implements EntryFilter {
@@ -65,6 +64,6 @@ public class MsgFilterImpl implements EntryFilter {
     
     @Override
     public void close() {
-        AV_EVALUATOR.clearExpressionCache();
+        MsgFilterUtils.clearExpressionCache();
     }
 }
