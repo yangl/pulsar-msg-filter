@@ -14,9 +14,10 @@
  */
 package io.github.yangl.pulsar.common;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -26,6 +27,8 @@ import static io.github.yangl.pulsar.common.MsgFilterConstants.MSGMETADATA_PROPE
 
 @Slf4j
 public class MsgFilterUtils {
+    
+    private static final Gson GSON = new GsonBuilder().create();
     
     // filter the message by expression
     public static boolean filter(String expression, Supplier<Map<String, Object>> supplier) {
@@ -49,7 +52,7 @@ public class MsgFilterUtils {
             log.error(
                     "message filter expression execute by aviator error, the expression is: {}, messageProperties is: {}",
                     expression,
-                    new ToStringBuilder(messageProperties),
+                    GSON.toJson(messageProperties),
                     e);
         }
         
