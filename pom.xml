@@ -6,12 +6,12 @@
     <parent>
         <groupId>org.apache</groupId>
         <artifactId>apache</artifactId>
-        <version>29</version>
+        <version>31</version>
     </parent>
     
     <groupId>io.github.yangl</groupId>
     <artifactId>pulsar-msg-filter</artifactId>
-    <version>3.0-SNAPSHOT</version>
+    <version>3.0.2</version>
     <packaging>pom</packaging>
     <name>${project.artifactId}</name>
     <description>message filter plugin for apache pulsar, both support server-side and client-side.</description>
