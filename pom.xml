@@ -24,7 +24,7 @@
     
     <properties>
         <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-        <pulsar.version>3.0.2</pulsar.version>
+        <pulsar.version>3.0.3</pulsar.version>
         
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <aviator.version>5.4.1</aviator.version>
